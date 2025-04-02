@@ -56,6 +56,9 @@ typedef HighlightBuilder =
 /// A builder function for the image.
 typedef ImageBuilder = Widget Function(BuildContext context, String imageUrl);
 
+/// A builder function for the emoji.
+typedef EmojiBuilder = Widget Function(BuildContext context, String emoji);
+
 /// A configuration class for the GPT Markdown component.
 ///
 /// The [GptMarkdownConfig] class is used to configure the GPT Markdown component.
@@ -79,6 +82,7 @@ class GptMarkdownConfig {
     this.unOrderedListBuilder,
     this.linkBuilder,
     this.imageBuilder,
+    this.emojiBuilder,
     this.maxLines,
     this.overflow,
     this.components,
@@ -136,6 +140,9 @@ class GptMarkdownConfig {
   /// The image builder.
   final ImageBuilder? imageBuilder;
 
+  /// The emoji builder.
+  final EmojiBuilder? emojiBuilder;
+
   /// The list of components.
   final List<MarkdownComponent>? components;
 
@@ -161,6 +168,7 @@ class GptMarkdownConfig {
     final ImageBuilder? imageBuilder,
     final OrderedListBuilder? orderedListBuilder,
     final UnOrderedListBuilder? unOrderedListBuilder,
+    final EmojiBuilder? emojiBuilder,
     final List<MarkdownComponent>? components,
     final List<MarkdownComponent>? inlineComponents,
   }) {
@@ -182,6 +190,7 @@ class GptMarkdownConfig {
       imageBuilder: imageBuilder ?? this.imageBuilder,
       orderedListBuilder: orderedListBuilder ?? this.orderedListBuilder,
       unOrderedListBuilder: unOrderedListBuilder ?? this.unOrderedListBuilder,
+      emojiBuilder: emojiBuilder ?? this.emojiBuilder,
       components: components ?? this.components,
       inlineComponents: inlineComponents ?? this.inlineComponents,
     );

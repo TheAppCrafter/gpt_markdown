@@ -36,6 +36,7 @@ class GptMarkdown extends StatelessWidget {
     this.sourceTagBuilder,
     this.highlightBuilder,
     this.linkBuilder,
+    this.emojiBuilder,
     this.maxLines,
     this.overflow,
     this.orderedListBuilder,
@@ -89,6 +90,9 @@ class GptMarkdown extends StatelessWidget {
 
   /// The image builder.
   final ImageBuilder? imageBuilder;
+
+  /// The emoji builder.
+  final EmojiBuilder? emojiBuilder;
 
   /// The ordered list builder.
   final OrderedListBuilder? orderedListBuilder;
@@ -191,6 +195,7 @@ class GptMarkdown extends StatelessWidget {
           highlightBuilder: highlightBuilder,
           linkBuilder: linkBuilder,
           imageBuilder: imageBuilder,
+          emojiBuilder: emojiBuilder,
           orderedListBuilder: orderedListBuilder,
           unOrderedListBuilder: unOrderedListBuilder,
           components: components,
