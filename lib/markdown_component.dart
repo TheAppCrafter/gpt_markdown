@@ -2,12 +2,11 @@ part of 'gpt_markdown.dart';
 
 /// Markdown components
 abstract class MarkdownComponent {
-  static final List<MarkdownComponent> components = [
+  static List<MarkdownComponent> get globalComponents => [
     CodeBlockMd(),
+    LatexMathMultiLine(),
     NewLines(),
     BlockQuote(),
-    ImageMd(),
-    ATagMd(),
     TableMd(),
     HTag(),
     UnOrderedList(),
@@ -15,13 +14,6 @@ abstract class MarkdownComponent {
     RadioButtonMd(),
     CheckBoxMd(),
     HrLine(),
-    StrikeMd(),
-    BoldMd(),
-    ItalicMd(),
-    LatexMath(),
-    LatexMathMultiLine(),
-    HighlightedText(),
-    SourceTag(),
     IndentMd(),
     EmojiMd(),
   ];
@@ -49,7 +41,7 @@ abstract class MarkdownComponent {
   ) {
     var components =
         includeGlobalComponents
-            ? config.components ?? MarkdownComponent.components
+            ? config.components ?? MarkdownComponent.globalComponents
             : config.inlineComponents ?? MarkdownComponent.inlineComponents;
     List<InlineSpan> spans = [];
     Iterable<String> regexes = components.map<String>((e) => e.exp.pattern);
@@ -77,6 +69,14 @@ abstract class MarkdownComponent {
         return "";
       },
       onNonMatch: (p0) {
+        if (p0.isEmpty) {
+          return "";
+        }
+        if (includeGlobalComponents) {
+          var newSpans = generate(context, p0, config.copyWith(), false);
+          spans.addAll(newSpans);
+          return "";
+        }
         spans.add(TextSpan(text: p0, style: config.style));
         return "";
       },
@@ -114,7 +114,8 @@ abstract class BlockMd extends MarkdownComponent {
   bool get inline => false;
 
   @override
-  RegExp get exp => RegExp(r'^\ *?' + expString, dotAll: true, multiLine: true);
+  RegExp get exp =>
+      RegExp(r'^\ *?' + expString + r"$", dotAll: true, multiLine: true);
 
   String get expString;
 
@@ -136,7 +137,10 @@ abstract class BlockMd extends MarkdownComponent {
         child: child,
       );
     }
-    child = Row(children: [Flexible(child: child)]);
+    child = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [Flexible(child: child)],
+    );
     return WidgetSpan(
       child: child,
       alignment: PlaceholderAlignment.baseline,
@@ -166,6 +170,7 @@ class IndentMd extends BlockMd {
     return Directionality(
       textDirection: config.textDirection,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Flexible(
             child: config.getRich(
@@ -259,7 +264,7 @@ class NewLines extends InlineMd {
 /// Horizontal line component
 class HrLine extends BlockMd {
   @override
-  String get expString => (r"(--)[-]+$");
+  String get expString => (r"⸻|((--)[-]+)$");
   @override
   Widget build(
     BuildContext context,
@@ -279,7 +284,6 @@ class HrLine extends BlockMd {
 class CheckBoxMd extends BlockMd {
   @override
   String get expString => (r"\[((?:\x|\ ))\]\ (\S[^\n]*?)$");
-  get onLinkTab => null;
 
   @override
   Widget build(
@@ -291,7 +295,7 @@ class CheckBoxMd extends BlockMd {
     return CustomCb(
       value: ("${match?[1]}" == "x"),
       textDirection: config.textDirection,
-      child: MdWidget("${match?[2]}", false, config: config),
+      child: MdWidget(context, "${match?[2]}", false, config: config),
     );
   }
 }
@@ -300,7 +304,6 @@ class CheckBoxMd extends BlockMd {
 class RadioButtonMd extends BlockMd {
   @override
   String get expString => (r"\(((?:\x|\ ))\)\ (\S[^\n]*)$");
-  get onLinkTab => null;
 
   @override
   Widget build(
@@ -312,7 +315,7 @@ class RadioButtonMd extends BlockMd {
     return CustomRb(
       value: ("${match?[1]}" == "x"),
       textDirection: config.textDirection,
-      child: MdWidget("${match?[2]}", false, config: config),
+      child: MdWidget(context, "${match?[2]}", false, config: config),
     );
   }
 }
@@ -391,7 +394,7 @@ class UnOrderedList extends BlockMd {
   ) {
     var match = this.exp.firstMatch(text);
 
-    var child = MdWidget("${match?[1]?.trim()}", true, config: config);
+    var child = MdWidget(context, "${match?[1]?.trim()}", true, config: config);
 
     return config.unOrderedListBuilder?.call(
           context,
@@ -429,7 +432,7 @@ class OrderedList extends BlockMd {
 
     var no = "${match?[1]}";
 
-    var child = MdWidget("${match?[2]?.trim()}", true, config: config);
+    var child = MdWidget(context, "${match?[2]?.trim()}", true, config: config);
     return config.orderedListBuilder?.call(
           context,
           no,
@@ -556,10 +559,8 @@ class StrikeMd extends InlineMd {
 /// Italic text component
 class ItalicMd extends InlineMd {
   @override
-  RegExp get exp => RegExp(
-    r"(?<!\*)\*(?<!\s)(.+?)(?<!\s)\*(?!\*)|\_(?<!\s)(.+?)(?<!\s)\_",
-    dotAll: true,
-  );
+  RegExp get exp =>
+      RegExp(r"(?:(?<!\*)\*(?<!\s)(.+?)(?<!\s)\*(?!\*))", dotAll: true);
 
   @override
   InlineSpan span(
@@ -781,7 +782,7 @@ class SourceTag extends InlineMd {
 /// Link text component
 class ATagMd extends InlineMd {
   @override
-  RegExp get exp => RegExp(r"\[([^\s\*\[][^\n]*?[^\s]?)?\]\(([^\s\*]*[^\)])\)");
+  RegExp get exp => RegExp(r"\[[^\[\]]*\]\([^\s]*\)");
 
   @override
   InlineSpan span(
@@ -789,13 +790,41 @@ class ATagMd extends InlineMd {
     String text,
     final GptMarkdownConfig config,
   ) {
-    var match = exp.firstMatch(text.trim());
-    if (match?[1] == null && match?[2] == null) {
+    // First try to find the basic pattern
+    final basicMatch = RegExp(r'\[([^\[\]]*)\]\(').firstMatch(text.trim());
+    if (basicMatch == null) {
       return const TextSpan();
     }
 
-    final linkText = match?[1] ?? "";
-    final url = match?[2] ?? "";
+    final linkText = basicMatch.group(1) ?? '';
+    final urlStart = basicMatch.end;
+
+    // Now find the balanced closing parenthesis
+    int parenCount = 0;
+    int urlEnd = urlStart;
+
+    for (int i = urlStart; i < text.length; i++) {
+      final char = text[i];
+
+      if (char == '(') {
+        parenCount++;
+      } else if (char == ')') {
+        if (parenCount == 0) {
+          // This is the closing parenthesis of the link
+          urlEnd = i;
+          break;
+        } else {
+          parenCount--;
+        }
+      }
+    }
+
+    if (urlEnd == urlStart) {
+      // No closing parenthesis found
+      return const TextSpan();
+    }
+
+    final url = text.substring(urlStart, urlEnd).trim();
 
     var builder = config.linkBuilder;
 
@@ -803,7 +832,7 @@ class ATagMd extends InlineMd {
     if (builder != null) {
       return WidgetSpan(
         child: GestureDetector(
-          onTap: () => config.onLinkTab?.call(url, linkText),
+          onTap: () => config.onLinkTap?.call(url, linkText),
           child: builder(
             context,
             linkText,
@@ -821,7 +850,7 @@ class ATagMd extends InlineMd {
         hoverColor: theme.linkHoverColor,
         color: theme.linkColor,
         onPressed: () {
-          config.onLinkTab?.call(url, linkText);
+          config.onLinkTap?.call(url, linkText);
         },
         text: linkText,
         config: config,
@@ -833,7 +862,7 @@ class ATagMd extends InlineMd {
 /// Image component
 class ImageMd extends InlineMd {
   @override
-  RegExp get exp => RegExp(r"\!\[([^\s][^\n]*[^\s]?)?\]\(([^\s]+?)\)");
+  RegExp get exp => RegExp(r"\!\[[^\[\]]*\]\([^\s]*\)");
 
   @override
   InlineSpan span(
@@ -841,25 +870,59 @@ class ImageMd extends InlineMd {
     String text,
     final GptMarkdownConfig config,
   ) {
-    var match = exp.firstMatch(text.trim());
+    // First try to find the basic pattern
+    final basicMatch = RegExp(r'\!\[([^\[\]]*)\]\(').firstMatch(text.trim());
+    if (basicMatch == null) {
+      return const TextSpan();
+    }
+
+    final altText = basicMatch.group(1) ?? '';
+    final urlStart = basicMatch.end;
+
+    // Now find the balanced closing parenthesis
+    int parenCount = 0;
+    int urlEnd = urlStart;
+
+    for (int i = urlStart; i < text.length; i++) {
+      final char = text[i];
+
+      if (char == '(') {
+        parenCount++;
+      } else if (char == ')') {
+        if (parenCount == 0) {
+          // This is the closing parenthesis of the image
+          urlEnd = i;
+          break;
+        } else {
+          parenCount--;
+        }
+      }
+    }
+
+    if (urlEnd == urlStart) {
+      // No closing parenthesis found
+      return const TextSpan();
+    }
+
+    final url = text.substring(urlStart, urlEnd).trim();
+
     double? height;
     double? width;
-    if (match?[1] != null) {
-      var size = RegExp(
-        r"^([0-9]+)?x?([0-9]+)?",
-      ).firstMatch(match![1].toString().trim());
+    if (altText.isNotEmpty) {
+      var size = RegExp(r"^([0-9]+)?x?([0-9]+)?").firstMatch(altText.trim());
       width = double.tryParse(size?[1]?.toString().trim() ?? 'a');
       height = double.tryParse(size?[2]?.toString().trim() ?? 'a');
     }
+
     final Widget image;
     if (config.imageBuilder != null) {
-      image = config.imageBuilder!(context, '${match?[2]}');
+      image = config.imageBuilder!(context, url);
     } else {
       image = SizedBox(
         width: width,
         height: height,
         child: Image(
-          image: NetworkImage("${match?[2]}"),
+          image: NetworkImage(url),
           loadingBuilder: (
             BuildContext context,
             Widget child,
@@ -970,6 +1033,7 @@ class TableMd extends BlockMd {
                               vertical: 4,
                             ),
                             child: MdWidget(
+                              context,
                               (e[index] ?? "").trim(),
                               false,
                               config: config,

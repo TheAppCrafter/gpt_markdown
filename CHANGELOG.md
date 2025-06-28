@@ -1,3 +1,23 @@
+## 1.1.0
+
+* Changed `onLinkTab` to `onLinkTap` fixed issues of newLine issues.
+
+## 1.0.20
+
+* Fix: support balanced parentheses in image and link URLs. [#68](https://github.com/Infinitix-LLC/gpt_markdown/pull/68)
+
+## 1.0.19
+
+* Performance improvements.
+
+## 1.0.18
+
+* dollarSignForLatex is added and by default it is false.
+
+## 1.0.17
+
+* Bloc components rendering inside table.
+
 ## 1.0.16
 
 * `IndentMd` and `BlockQuote` fixed.
